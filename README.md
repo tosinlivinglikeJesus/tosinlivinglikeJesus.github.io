@@ -19,4 +19,4 @@ into user behaviour and inform BellaBeat's marketing strategy.
 
 ## Files
 - `BellaBeat.Rmd` — full analysis with code
-- `BellaBeat_Fitness_Casestudy.pdf` — knitted report
+- `BellaBeat Fitness.pdf` — knitted report
