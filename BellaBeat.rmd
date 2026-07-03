@@ -1,0 +1,381 @@
+---
+title: "BellaBeat Fitness Casestudy"
+author: "Goodness Akinkuade"
+date: "2026-07-01"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+## Introduction
+
+### Company Overview
+BellaBeat Fitness is a high-tech manufacturer of health-focused products for women, including: smart watches, smart bracelets/neck-pieces/clips, smart water bottles, an app that provides users with health data and connects all the smart devices and a membership which allows subscribed members access to personalized reports and consultations about issues surrounding their health that includes sleep, activity/exercise, diet and calories intake, beauty and mindfulness. We’ve been contracted to focus on one of BellaBeat’s products and analyze smart device data to gain insights into how consumers are using their smart devices. The insights will help guide marketing strategy and reveal more opportunities for growth for the company.
+
+### Stakeholders
+* Urška Sršen: Bellabeat’s co-founder and Chief Creative Officer.
+* Sando Mur: Mathematician and Bellabeat’s co-founder.
+* BellaBeat marketing analytics team.
+
+### Data & Data Source
+The data used for this case study is from FitBit Fitness Tracker Data, available on Kaggle and published by Mobius under a CC0 Public Domain license. The data contains fitness tracker records submitted by over 30 consenting FitBit users who participated in a distributed Amazon Mechanical Turk survey conducted in 2016. Relying solely on this dataset for the case study may limit the validity and depth of the insights obtained. Therefore, it has been recommended that an additional dataset be incorporated to produce a more comprehensive and effective analysis. The dataset receives a low originality rating because it was collected and distributed by a third party. However, it is relatively comprehensive, as it includes daily, hourly, and minute-level fitness data recorded over several days for each participant. Another major limitation is its currency, since the data was collected in 2016 and users’ behaviors, habits, and technology usage may have changed since then. In addition, the dataset has limited source attribution, although some information about the data-collection process and the parties involved has been documented.
+
+### Data Processing
+
+All data cleaning, formatting, manipulation, analysis and visualization have been done using R programming language in the R Studio.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+#Installing Packages
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("janitor")
+```
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+#Loading Packages
+library(tidyverse)
+library(lubridate) 
+library(janitor)
+library(here)
+```
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Loading Datasets
+activity <- read.csv(here("BellaBeat CaseStudy", "dailyActivity_merged.csv"))
+intensities <- read.csv(here("BellaBeat CaseStudy", "hourlyIntensities_merged.csv"))
+sleep <- read.csv(here("BellaBeat CaseStudy", "sleepDay_merged.csv"))
+weight <- read.csv(here("BellaBeat CaseStudy", "weightLogInfo_merged.csv"))
+```
+
+
+```{r, echo=TRUE, results='hide'}
+#Viewing Datasets & Columns
+head(activity)
+head(intensities)
+head(sleep)
+head(weight)
+
+colnames(activity)
+colnames(intensities)
+colnames(sleep)
+colnames(weight)
+```
+
+
+* **Observation**: After importing and examining the data, I observed that the date/time columns of the datasets need to be modified in order for the data to be useful for analysis.
+
+
+```{r echo=TRUE}
+#Correcting the time and date formats of the datasets.
+activity$ActivityDate <- as.POSIXct(activity$ActivityDate, format = "%m/%d/%Y")
+
+intensities <- intensities %>%
+  mutate(ActivityHour = mdy_hms(ActivityHour))
+
+sleep$SleepDay <- as.POSIXct(sleep$SleepDay, format = "%m/%d/%Y")
+
+weight$Date <- as.POSIXct(weight$Date, format = "%m/%d/%Y %I:%M:%S %p", tz=Sys.timezone())
+weight$date <- format(weight$Date, format = "%m/%d/%Y")
+weight$time <- format(weight$Date, format = "%I:%M:%S %p")
+```
+
+
+### Data Analysis
+
+```{r, echo=TRUE, results='hide'}
+#Summarizing the datasets.
+
+# activity
+activity %>%  
+  select(TotalSteps,TotalDistance,SedentaryMinutes, Calories) %>%
+  summary()
+
+# active minutes per category
+activity %>%
+  select(VeryActiveMinutes, FairlyActiveMinutes, LightlyActiveMinutes) %>%
+  summary()
+
+# calories
+activity %>%
+  select(Calories) %>%
+  summary()
+
+# weight
+weight %>%
+  select(WeightKg, BMI) %>%
+  summary()
+```
+
+
+* **Observation**: After importing the weight dataset, I observed a low number of unique participants, so I wrote a code to confirm.
+
+
+```{r, message=FALSE, warning=FALSE}
+#Checking participant coverage percentage of the Weight dataset, due to low number of unique users.
+weight %>%
+  summarise(
+    unique_users = n_distinct(Id),
+    expected_users = 33,
+    coverage_percent = n_distinct(Id) / expected_users * 100
+  )
+```
+
+* **Insight**: The coverage percentage for users who reported or recorded their weight data is only 24%.
+
+Still using the weight dataset, I wanted to check if there was any significant weight changed noticed from the users that participated in the fitness data category.
+
+```{r, message=FALSE, warning=FALSE}
+#Checking to see any significant changes in weight worth reporting.
+weight_change <- weight %>%
+group_by(Id) %>%
+  summarise(
+    max_weight = max(WeightKg),
+    min_weight = min(WeightKg)
+  )
+
+head(weight_change)
+```
+
+
+* **Conclusion**: Due to the limited number of participants represented in the weight dataset and the lack of meaningful variation in the recorded weight measurements, this dataset was excluded from further analysis. As a result, no conclusions or recommendations were drawn from the weight data, as it was considered insufficient to support reliable or broader insights.
+
+
+* **Observation**: From the data and information we have for this project, I noticed that most data collected was automatically logged and not manually logged. This means it might not be possible to get any accurate insights about how frequently the users open their apps, whether they read or follow health recommendations on the app or devices, whether certain notifications changed their behavior or whether a specific BellaBeat product feature caused improved health. But, we can check how many unique users participated in each fitness category.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Feature Usage
+feature_usage <- data.frame(
+  Feature = c('Activity', 'Sleep', 'Weight'),
+  UniqueUsers = c(
+    n_distinct(activity$Id),
+    n_distinct(sleep$Id),
+    n_distinct(weight$Id)
+  )
+)
+
+#Viz: Number of Users Recording Each Health Metric.
+ggplot(feature_usage, aes(x = Feature, y = UniqueUsers)) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "Number of Users Recording Each Health Metric",
+    x = "Tracked feature",
+    y = "Unique users"
+  ) +
+  theme_minimal()
+```
+
+
+* **Insight**: We can observe that the Activity metric seems to be the most logged metric or the most used feature by the users. I am speculating that this is so because, like I also earlier observed, the metric is automatically logged and not manually logged, like the weight metric would have had to be.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Average activity by hour of the day.
+hourly_activity <- intensities %>%
+  mutate(hour = hour(ActivityHour)) %>%
+  group_by(hour) %>%
+  summarise(
+    AvgTotalIntensity = mean(TotalIntensity, na.rm = TRUE),
+    AvgIntensity = mean(AverageIntensity, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(time = format(
+    as.POSIXct(hour * 3600, origin = "1970-01-01", tz = "UTC"),
+    "%I %p"))
+
+#Viz: Most Active Hour of the Day
+ggplot(data = hourly_activity, aes(x = hour, y = AvgTotalIntensity)) +
+  geom_line() + geom_point() +
+  scale_x_continuous(breaks = hourly_activity$hour,
+                     labels = hourly_activity$time) +
+  labs(title = "Most Active Hour of the Day.",
+       subtitle = "Shows the periods when users were generally most active.", 
+       x = "Hour of day.", 
+       y = "Average total intensity."
+       ) +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+* **Insight**: We can clearly see from the visualization that 6:00PM seems to be the most active hour of the day for the users.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Average activity by day of the week.
+daily_activity <- activity %>%
+  mutate(day = wday(ActivityDate, label = TRUE, abbr = FALSE),
+         TotalActiveMinutes = VeryActiveMinutes + FairlyActiveMinutes + LightlyActiveMinutes) %>%
+  group_by(day) %>%
+  summarise(AvgTotalSteps = mean(TotalSteps, na.rm = TRUE),
+            AvgCalories = mean(Calories, na.rm = TRUE),
+            TotalAvgActiveMinutes = mean(TotalActiveMinutes, na.rm = TRUE),
+            .groups = "drop"
+  )
+
+#Viz: Most Active Days by Steps
+ggplot(data = daily_activity, aes(x = day, y = AvgTotalSteps)) +
+  geom_col(fill = "blue") +
+  labs(title = "Most Active Day of the Week by Steps.",
+       subtitle = "Shows the days when users took the most steps.", 
+       x = "Day of the week.", 
+       y = "Steps per day."
+  )
+
+#Viz: Most Active Days by Active Minutes
+ggplot(data = daily_activity, aes(x = day, y = TotalAvgActiveMinutes)) +
+  geom_col(fill = "blue") +
+  labs(title = "Most Active Day of the Week by Active Minutes.",
+       subtitle = "Shows the days when users had the most active minutes.", 
+       x = "Day of the week.", 
+       y = "Active Minutes per Day."
+  )
+```
+
+
+* **Insight**: We can clearly see from the visualization that Saturday seems to be the most active day of the week for the users, both by steps and active minutes.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+# How users are spending time on an average day.
+activity_composition <- activity %>%
+  summarise(
+    Sedentary = mean(SedentaryMinutes, na.rm = TRUE),
+    LightlyActive = mean(LightlyActiveMinutes, na.rm = TRUE),
+    FairlyActive = mean(FairlyActiveMinutes, na.rm = TRUE),
+    VeryActive = mean(VeryActiveMinutes, na.rm = TRUE)
+  ) %>%
+    pivot_longer(
+      cols = everything(),
+      names_to = "Activity Level",
+      values_to = "Average Minutes"
+    )
+
+#Viz: Composition of users' days by activity level.
+ggplot(data = activity_composition, aes(x = `Activity Level`, y = `Average Minutes`)) +
+  geom_col() + 
+  labs(title = "How users spend their day.",
+      x = "Activity Level.", 
+      y = "Average Minutes"
+  ) +
+  theme_minimal()
+```
+
+
+* **Insight**: We can clearly see that users spend most of their days being sedentary.
+
+```{r, echo=TRUE, results='hide'}
+#Calculating Awake Time in Bed & Sleep Efficiency
+sleep <- sleep %>%
+  mutate(
+    AwakeTimeInBed = TotalTimeInBed - TotalMinutesAsleep,
+    SleepEfficiency = TotalMinutesAsleep / TotalTimeInBed * 100
+  )
+
+# sleep
+sleep %>%
+  select(TotalSleepRecords, TotalMinutesAsleep, TotalTimeInBed, AwakeTimeInBed, SleepEfficiency) %>%
+  summary()
+```
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Merging the Sleep and Activity Datasets.
+activity <- activity %>%
+  mutate(date = as.Date(ActivityDate))
+
+sleep <- sleep %>%
+  mutate(date = as.Date(SleepDay))
+        
+merged_data <- merge(sleep, activity, by = c('Id', 'date'))
+```
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+#Checking Users Sedentary Time vs. Time Asleep.
+user_sleep_activity <- merged_data %>%
+  group_by(Id) %>%
+  summarise(
+    AvgSedentaryMinutes =
+      mean(SedentaryMinutes, na.rm = TRUE),
+    AvgSleepMinutes =
+      mean(TotalMinutesAsleep, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+#Viz: User Sedentary Time vs. Time Asleep.
+ggplot(user_sleep_activity, aes(x = AvgSedentaryMinutes, y = AvgSleepMinutes)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Average Sedentary Time and Sleep by User",
+    x = "Average sedentary minutes",
+    y = "Average minutes asleep"
+  ) +
+  theme_minimal()
+```
+
+
+* **Insight**: There seems to be a negative correlation between average sedentary time and time asleep. It means the more time a user spends being sedentary, the less time they tend to spend sleeping.
+
+
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
+# Total time in bed vs. Total time asleep.
+sleep_by_user <- sleep %>%
+  group_by(Id) %>%
+  summarise(
+    AvgTotalMinutesAsleep = mean(TotalMinutesAsleep, na.rm = TRUE),
+    AvgTotalTimeInBed = mean(TotalTimeInBed, na.rm = TRUE)
+  )
+
+ggplot(sleep_by_user, aes(x = AvgTotalMinutesAsleep,
+      y = AvgTotalTimeInBed)) +
+  geom_point(alpha = 0.7, size = 3) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Average Total Time Asleep vs. Average Total Time in bed by User",
+    x = "Average Total Minutes Asleep.",
+    y = "Average Total Minutes in Bed."
+  ) +
+  theme_minimal()
+```
+
+
+* **Insight**: It can be clearly observed that the more time a user spends in bed, the more time they tend to spend sleeping.
+
+
+## Summary and Recommendations
+
+### Business Objective
+
+The main objective of this project was to understand how Bellabeat customers use their smart devices so that the company can make better business and marketing decisions.
+
+While exploring the data, I noticed that most of the information was automatically recorded by the devices rather than manually entered by users. Because of this, the data cannot tell us how often users open the app, whether they read health recommendations, or whether certain Bellabeat features directly influence their health. Instead, this analysis focuses on identifying patterns in users' activity and sleep habits based on the available data.
+
+### Key Findings
+
+The activity dataset had the highest number of users, which is likely because activity data is automatically tracked, unlike metrics such as weight that require manual logging.
+
+Users are generally most active around **6:00 PM**, and **Saturday** stands out as the most active day of the week based on both steps and active minutes.
+
+Despite these periods of activity, users spend a large portion of their day being sedentary. The data also shows a negative relationship between sedentary time and sleep duration, meaning users who spend more time being sedentary tend to sleep less.
+
+Another clear pattern is that users who spend more time in bed also tend to spend more time asleep. Most users recorded one sleep session per day, and the average sleep efficiency was **91.68%**, suggesting they spend most of their time in bed actually sleeping.
+
+### Recommendations
+
+Since activity tracking contains the most complete data, BellaBeat should continue making it one of its main product features by offering personalized activity summaries and progress tracking.
+
+Because users are most active around **6:00 PM**, BellaBeat could send workout reminders or motivational notifications shortly before this time. Weekend fitness challenges, especially on Saturdays, could also encourage users to stay active and increase engagement.
+
+The high amount of sedentary time presents an opportunity to introduce smarter reminders that encourage users to move throughout the day. BellaBeat could also continue improving its sleep features by providing bedtime reminders and personalized sleep recommendations.
+
+Finally, collecting more information about app usage, notification engagement, and feature interactions would help BellaBeat better understand how users interact with its products and make future analyses even more meaningful.
+
+### Conclusion
+
+Although this dataset cannot fully explain how users interact with the BellaBeat app or its features, it provides useful insights into their activity and sleep habits. These findings can help BellaBeat improve user engagement, encourage healthier lifestyles, and make more informed decisions when developing future products and features.
+
+
