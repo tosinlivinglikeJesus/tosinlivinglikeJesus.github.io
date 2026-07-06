@@ -1,5 +1,5 @@
-# tosinlivinglikeJesus.github.io
-Data Analysis Repository.
+# google-data-analytics-capstone
+Data Analysis Repository
 
 # BellaBeat Fitness Case Study
 
